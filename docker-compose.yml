@@ -11,9 +11,9 @@ services:
 
   srt-server:
     build: ./srs
-    container_name: srt-server
     ports:
       - "10080:10080/udp"
       - "10081:10081/udp"
       - "10082:10082/udp"
     restart: always
+
