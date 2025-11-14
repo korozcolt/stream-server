@@ -5,15 +5,13 @@ services:
     build: ./nginx-rtmp
     container_name: nginx-rtmp
     ports:
-      - "1935:1935"
-      - "8080:80"
+      - "1935:1935"   # RTMP
+      - "8080:80"     # Panel /stat de nginx-rtmp
     restart: always
 
   srt-server:
     build: ./srs
+    container_name: stream-server-srt-hhflep-srt-server-1
     ports:
-      - "10080:10080/udp"
-      - "10081:10081/udp"
-      - "10082:10082/udp"
+      - "10080:10080/udp"   # SRT (puedes dejar 10080-10082 si luego usas más)
     restart: always
-
