@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stream Monitor · srt.kronnos.dev</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     :root {
       --bg: #07080d;
@@ -369,33 +370,38 @@
     </div>
   </div>
 
-  <div class="section-title">Información de conexión</div>
+  <div class="section-title">Conexión rápida — escanea el QR desde la app</div>
+  <div class="server-panel" id="qr-panel">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">
+      Escanea el QR desde CameraFi / OBS / cualquier app SRT. Cada cámara tiene su propia URL.
+    </div>
+    <div id="qr-cards" style="display:flex;gap:20px;flex-wrap:wrap;"></div>
+  </div>
+
+  <div class="section-title">Información de conexión manual</div>
   <div class="server-panel">
     <div style="margin-bottom:16px;">
       <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;font-weight:700;">
-        ★ SRT — recomendado para redes inestables (OBS / apps de streaming)
+        SRT — recomendado para redes inestables
       </div>
-      <div class="server-info" style="gap:20px;">
-        <div class="server-kv">
-          <span>URL completa:</span>
-          <span>srt://srt.kronnos.dev:10080?streamid=<em style="color:var(--yellow)">{nombre}</em></span>
+      <div class="server-info" style="gap:20px;align-items:flex-start;">
+        <div>
+          <div class="server-kv" style="margin-bottom:6px;"><span>Servidor:</span><span>srt://srt.kronnos.dev:10080</span></div>
+          <div class="server-kv" style="margin-bottom:6px;"><span>streamid:</span><span style="color:var(--yellow);font-weight:700;">cam1</span> <span style="color:var(--muted);font-size:10px;">(o cam2, cam3…)</span></div>
+          <div class="server-kv" style="margin-bottom:6px;"><span>Mode:</span><span>Caller</span></div>
+          <div class="server-kv" style="margin-bottom:6px;"><span>latency:</span><span>200ms</span></div>
+          <div class="server-kv"><span style="color:var(--red);">pbkeylen:</span><span style="color:var(--red);font-weight:700;">0</span> <span style="color:var(--muted);font-size:10px;">(passphrase vacío → poner 0)</span></div>
         </div>
-        <div class="server-kv"><span>— o en OBS separado —</span></div>
-        <div class="server-kv"><span>Servidor:</span><span>srt://srt.kronnos.dev:10080</span></div>
-        <div class="server-kv"><span>Stream Key:</span><span><em style="color:var(--yellow)">{nombre}</em></span></div>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px;">
-        Reemplaza <strong style="color:var(--yellow)">{nombre}</strong> con cualquier palabra sin espacios: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">camara1</code>, <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">campo</code>, <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">estudio</code>…
       </div>
     </div>
     <div style="border-top:1px solid var(--border);padding-top:14px;">
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;font-weight:600;">
-        RTMP (alternativa) / Reproducción
+        RTMP (alternativa) / Ver streams
       </div>
       <div class="server-info">
-        <div class="server-kv"><span>RTMP publish:</span><span>rtmp://srt.kronnos.dev:1935/live  · key: <em style="color:var(--yellow)">{nombre}</em></span></div>
-        <div class="server-kv"><span>Ver en VLC:</span><span>rtmp://srt.kronnos.dev:1935/live/<em style="color:var(--yellow)">{nombre}</em></span></div>
-        <div class="server-kv"><span>HLS (navegador):</span><span>https://srt.kronnos.dev/live/<em style="color:var(--yellow)">{nombre}</em>.m3u8</span></div>
+        <div class="server-kv"><span>RTMP:</span><span>rtmp://srt.kronnos.dev:1935/live · key: cam1</span></div>
+        <div class="server-kv"><span>VLC:</span><span>rtmp://srt.kronnos.dev:1935/live/cam1</span></div>
+        <div class="server-kv"><span>HLS:</span><span>https://srt.kronnos.dev/live/cam1.m3u8</span></div>
       </div>
     </div>
   </div>
@@ -585,6 +591,32 @@
     }
   }
 
+  const CAMERAS = ['cam1', 'cam2', 'cam3'];
+
+  function buildQrCards() {
+    const container = document.getElementById('qr-cards');
+    container.innerHTML = '';
+    CAMERAS.forEach(name => {
+      const srtUrl = `srt://srt.kronnos.dev:10080?streamid=${name}`;
+      const div = document.createElement('div');
+      div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;min-width:160px;';
+      div.innerHTML = `
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">${name}</div>
+        <div id="qr-${name}" style="background:#fff;padding:6px;border-radius:6px;display:inline-block;"></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:8px;font-family:monospace;">streamid=${name}</div>
+        <button class="copy-btn" style="margin-top:6px;display:block;width:100%;" onclick="copyUrl('${srtUrl}', this)">Copiar URL</button>
+      `;
+      container.appendChild(div);
+      try {
+        new QRCode(document.getElementById(`qr-${name}`), {
+          text: srtUrl, width: 120, height: 120,
+          colorDark: '#000', colorLight: '#fff'
+        });
+      } catch(e) {}
+    });
+  }
+
+  buildQrCards();
   fetchData();
   setInterval(fetchData, 2000);
 </script>
