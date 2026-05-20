@@ -1,17 +1,16 @@
-version: "3.8"
-
 services:
-  nginx-rtmp:
-    build: ./nginx-rtmp
-    container_name: nginx-rtmp
+  srs:
+    build: ./srs
     ports:
-      - "1935:1935"   # RTMP
-      - "8080:80"     # Panel /stat de nginx-rtmp
+      - "1935:1935"         # RTMP publish/play
+      - "10080:10080/udp"   # SRT publish/play
+      - "8080:8080"         # HTTP: HLS, HTTP-FLV, stats
+      - "1985:1985"         # HTTP API
     restart: always
 
-  srt-server:
-    build: ./srs
-    container_name: stream-server-srt-hhflep-srt-server-1
+  nginx-rtmp:
+    build: ./nginx-rtmp
     ports:
-      - "10080:10080/udp"   # SRT (puedes dejar 10080-10082 si luego usas más)
+      - "1936:1935"         # RTMP backup (port 1936 on host)
+      - "8081:80"           # nginx-rtmp stats
     restart: always
