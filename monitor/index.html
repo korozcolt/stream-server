@@ -442,10 +442,14 @@
     const a = stream.audio || {};
     const w = v.width || 0, h = v.height || 0;
     const aspect = getAspectRatio(w, h);
-    const bwVideo = stream.bw_video || 0;
-    const bwAudio = stream.bw_audio || 0;
+    const bwVideo = stream.kbps?.recv_30s || stream.bw_video || 0;
+    const bwAudio = 0;
     const totalBw = bwVideo + bwAudio;
     const bwPercent = Math.min(100, (totalBw / 8000) * 100);
+    // live_ms is a Unix timestamp in ms — compute elapsed duration
+    const liveDurationMs = stream.live_ms ? (Date.now() - stream.live_ms) : 0;
+    // FPS from video field or estimate from frames/duration
+    const fps = v.fps || (stream.frames && liveDurationMs > 0 ? Math.round(stream.frames / (liveDurationMs / 1000)) : null);
 
     const streamId = stream.stream || stream.name.split('/').pop() || 'stream';
     const app = stream.app || 'live';
@@ -484,7 +488,7 @@
             </div>
             <div class="stream-field">
               <label>FPS</label>
-              <div class="value">${v.fps || '—'}</div>
+              <div class="value">${fps || '—'}</div>
             </div>
             <div class="stream-field">
               <label>Video</label>
@@ -496,12 +500,12 @@
             </div>
             <div class="stream-field">
               <label>Bitrate</label>
-              <div class="value">${formatBitrate(totalBw)}</div>
+              <div class="value">${totalBw > 0 ? formatBitrate(totalBw) : '—'}</div>
               <div class="bitrate-bar"><div class="bitrate-fill" style="width:${bwPercent}%"></div></div>
             </div>
             <div class="stream-field">
               <label>Tiempo live</label>
-              <div class="value">${formatDuration(stream.live_ms || 0)}</div>
+              <div class="value">${formatDuration(liveDurationMs)}</div>
             </div>
           </div>
           <div class="stream-urls">
@@ -545,7 +549,7 @@
       document.getElementById('stat-viewers').textContent =
         streams.reduce((acc, s) => acc + (s.clients || 0), 0);
 
-      const totalBwIn = streams.reduce((acc, s) => acc + (s.kbps?.recv_30s || 0), 0);
+      const totalBwIn = streams.reduce((acc, s) => acc + (s.kbps?.recv_30s || s.bw_video || 0), 0);
       const totalBwOut = streams.reduce((acc, s) => acc + (s.kbps?.send_30s || 0), 0);
       document.getElementById('stat-bw-in').textContent = formatBitrate(totalBwIn);
       document.getElementById('stat-bw-out').textContent = formatBitrate(totalBwOut);
