@@ -371,24 +371,31 @@
 
   <div class="section-title">Información de conexión</div>
   <div class="server-panel">
-    <div style="margin-bottom:14px;">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;font-weight:600;">
-        OBS Studio — SRT (recomendado para redes inestables)
+    <div style="margin-bottom:16px;">
+      <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;font-weight:700;">
+        ★ SRT — recomendado para redes inestables (OBS / apps de streaming)
       </div>
-      <div class="server-info" style="gap:16px;">
+      <div class="server-info" style="gap:20px;">
+        <div class="server-kv">
+          <span>URL completa:</span>
+          <span>srt://srt.kronnos.dev:10080?streamid=<em style="color:var(--yellow)">{nombre}</em></span>
+        </div>
+        <div class="server-kv"><span>— o en OBS separado —</span></div>
         <div class="server-kv"><span>Servidor:</span><span>srt://srt.kronnos.dev:10080</span></div>
-        <div class="server-kv"><span>Stream Key:</span><span>#!::r=live/{nombre},m=publish</span></div>
+        <div class="server-kv"><span>Stream Key:</span><span><em style="color:var(--yellow)">{nombre}</em></span></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">
+        Reemplaza <strong style="color:var(--yellow)">{nombre}</strong> con cualquier palabra sin espacios: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">camara1</code>, <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">campo</code>, <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">estudio</code>…
       </div>
     </div>
     <div style="border-top:1px solid var(--border);padding-top:14px;">
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;font-weight:600;">
-        RTMP / Reproducción
+        RTMP (alternativa) / Reproducción
       </div>
       <div class="server-info">
-        <div class="server-kv"><span>RTMP publish:</span><span>rtmp://srt.kronnos.dev:1935/live/{nombre}</span></div>
-        <div class="server-kv"><span>HLS play:</span><span>https://srt.kronnos.dev/live/{nombre}.m3u8</span></div>
-        <div class="server-kv"><span>RTMP backup:</span><span>rtmp://srt.kronnos.dev:1936/live/{nombre}</span></div>
-        <div class="server-kv"><span>HTTP-FLV:</span><span>https://srt.kronnos.dev/live/{nombre}.flv</span></div>
+        <div class="server-kv"><span>RTMP publish:</span><span>rtmp://srt.kronnos.dev:1935/live  · key: <em style="color:var(--yellow)">{nombre}</em></span></div>
+        <div class="server-kv"><span>Ver en VLC:</span><span>rtmp://srt.kronnos.dev:1935/live/<em style="color:var(--yellow)">{nombre}</em></span></div>
+        <div class="server-kv"><span>HLS (navegador):</span><span>https://srt.kronnos.dev/live/<em style="color:var(--yellow)">{nombre}</em>.m3u8</span></div>
       </div>
     </div>
   </div>
@@ -453,11 +460,10 @@
 
     const streamId = stream.stream || stream.name.split('/').pop() || 'stream';
     const app = stream.app || 'live';
-    // OBS SRT: server field uses only the host:port, stream key is the streamid value
+    // SRT simplified format: just the stream name, no special characters
     const srtServer = `srt://srt.kronnos.dev:10080`;
-    const srtKey = `#!::r=${app}/${streamId},m=request`;
-    // Full SRT URL for ffmpeg/VLC (comma URL-encoded to avoid rejections)
-    const srtUrl = `srt://srt.kronnos.dev:10080?streamid=%23%21%3A%3Ar%3D${app}%2F${streamId}%2Cm%3Drequest`;
+    const srtKey = streamId;
+    const srtUrl = `srt://srt.kronnos.dev:10080?streamid=${streamId}`;
     const rtmpUrl = `rtmp://srt.kronnos.dev:1935/${app}/${streamId}`;
     const hlsUrl = `https://${HOST}/${app}/${streamId}.m3u8`;
 
@@ -510,10 +516,9 @@
           </div>
           <div class="stream-urls">
             <div class="url-row">
-              <span class="url-tag tag-srt" title="OBS: pega en campo Servidor">SRT</span>
-              <span class="url-text" title="OBS Servidor: ${srtServer}">${srtServer}</span>
-              <button class="copy-btn" onclick="copyUrl('${srtServer}', this)">Servidor</button>
-              <button class="copy-btn" onclick="copyUrl('${srtKey}', this)" title="OBS Stream Key">Key</button>
+              <span class="url-tag tag-srt">SRT</span>
+              <span class="url-text" title="${srtUrl}">${srtUrl}</span>
+              <button class="copy-btn" onclick="copyUrl('${srtUrl}', this)">Copiar</button>
             </div>
             <div class="url-row">
               <span class="url-tag tag-rtmp">RTMP</span>
