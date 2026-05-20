@@ -386,11 +386,12 @@
       </div>
       <div class="server-info" style="gap:20px;align-items:flex-start;">
         <div>
-          <div class="server-kv" style="margin-bottom:6px;"><span>Servidor:</span><span>srt://srt.kronnos.dev:10080</span></div>
-          <div class="server-kv" style="margin-bottom:6px;"><span>streamid:</span><span style="color:var(--yellow);font-weight:700;">cam1</span> <span style="color:var(--muted);font-size:10px;">(o cam2, cam3…)</span></div>
+          <div class="server-kv" style="margin-bottom:6px;"><span>URL / Servidor:</span><span>srt://srt.kronnos.dev:10080</span></div>
+          <div class="server-kv" style="margin-bottom:6px;"><span style="color:var(--accent);">campo streamid:</span><span style="color:var(--yellow);font-weight:700;font-family:monospace;">#!::r=live/cam1,m=publish</span></div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:10px;margin-left:4px;">↑ copiar del QR o del botón "Streamid" — va en el campo streamid, NO en la URL</div>
           <div class="server-kv" style="margin-bottom:6px;"><span>Mode:</span><span>Caller</span></div>
           <div class="server-kv" style="margin-bottom:6px;"><span>latency:</span><span>200ms</span></div>
-          <div class="server-kv"><span style="color:var(--red);">pbkeylen:</span><span style="color:var(--red);font-weight:700;">0</span> <span style="color:var(--muted);font-size:10px;">(passphrase vacío → poner 0)</span></div>
+          <div class="server-kv"><span style="color:var(--red);">pbkeylen:</span><span style="color:var(--red);font-weight:700;">0</span> <span style="color:var(--muted);font-size:10px;">(con passphrase vacío → debe ser 0)</span></div>
         </div>
       </div>
     </div>
@@ -597,22 +598,30 @@
     const container = document.getElementById('qr-cards');
     container.innerHTML = '';
     CAMERAS.forEach(name => {
-      const srtUrl = `srt://srt.kronnos.dev:10080?streamid=${name}`;
+      // Full publish streamid — QR codes support any character, no keyboard restriction
+      const publishStreamid = `#!::r=live/${name},m=publish`;
+      const srtPublishUrl = `srt://srt.kronnos.dev:10080?streamid=${publishStreamid}`;
+      const srtPlayUrl = `srt://srt.kronnos.dev:10080?streamid=${name}`;
       const div = document.createElement('div');
-      div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;min-width:160px;';
+      div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;min-width:180px;';
       div.innerHTML = `
-        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">${name}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">${name}</div>
+        <div style="font-size:9px;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">Escanear para publicar</div>
         <div id="qr-${name}" style="background:#fff;padding:6px;border-radius:6px;display:inline-block;"></div>
-        <div style="font-size:10px;color:var(--muted);margin-top:8px;font-family:monospace;">streamid=${name}</div>
-        <button class="copy-btn" style="margin-top:6px;display:block;width:100%;" onclick="copyUrl('${srtUrl}', this)">Copiar URL</button>
+        <div style="font-size:9px;color:var(--muted);margin-top:8px;font-family:monospace;word-break:break-all;">streamid=${name}</div>
+        <div style="display:flex;gap:4px;margin-top:8px;">
+          <button class="copy-btn" style="flex:1;" onclick="copyUrl('${publishStreamid}', this)" title="Para campo streamid en CameraFi">Streamid</button>
+          <button class="copy-btn" style="flex:1;" onclick="copyUrl('${srtPlayUrl}', this)" title="Para VLC / reproductores">Ver VLC</button>
+        </div>
       `;
       container.appendChild(div);
       try {
         new QRCode(document.getElementById(`qr-${name}`), {
-          text: srtUrl, width: 120, height: 120,
-          colorDark: '#000', colorLight: '#fff'
+          text: srtPublishUrl, width: 130, height: 130,
+          colorDark: '#000', colorLight: '#fff',
+          correctLevel: QRCode.CorrectLevel.M
         });
-      } catch(e) {}
+      } catch(e) { console.error('QR error:', e); }
     });
   }
 
