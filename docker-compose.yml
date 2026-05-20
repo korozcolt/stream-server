@@ -14,3 +14,20 @@ services:
       - "1936:1935"         # RTMP backup (port 1936 on host)
       - "8081:80"           # nginx-rtmp stats
     restart: always
+
+  monitor:
+    build: ./monitor
+    restart: always
+    networks:
+      - default
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.stream-monitor.rule=Host(`srt.kronnos.dev`)"
+      - "traefik.http.routers.stream-monitor.entrypoints=websecure"
+      - "traefik.http.routers.stream-monitor.tls.certresolver=letsencrypt"
+      - "traefik.http.services.stream-monitor.loadbalancer.server.port=80"
+
+networks:
+  dokploy-network:
+    external: true

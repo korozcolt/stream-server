@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stream Monitor · srt.kronnos.dev</title>
+  <style>
+    :root {
+      --bg: #07080d;
+      --surface: #111219;
+      --surface2: #1a1c26;
+      --border: #252836;
+      --accent: #4f8ef7;
+      --accent2: #7c4dff;
+      --green: #2ecc71;
+      --red: #e74c3c;
+      --yellow: #f39c12;
+      --text: #e2e4ef;
+      --muted: #6b7280;
+      --live: #ff4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .logo .dot {
+      width: 10px; height: 10px;
+      background: var(--live);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--live);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.85); }
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .refresh-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .refresh-spinner {
+      width: 10px; height: 10px;
+      border: 1.5px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .refresh-spinner.active { opacity: 1; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+    .stat-value { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+    .stat-value.green { color: var(--green); }
+    .stat-value.accent { color: var(--accent); }
+    .stat-value.yellow { color: var(--yellow); }
+    .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 14px;
+    }
+
+    .streams-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stream-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .stream-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent)22;
+    }
+    .stream-card-header {
+      padding: 14px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .stream-name {
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge-live {
+      font-size: 9px;
+      font-weight: 700;
+      background: var(--live);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .badge-idle {
+      font-size: 9px;
+      font-weight: 700;
+      background: var(--muted);
+      color: var(--bg);
+      padding: 2px 6px;
+      border-radius: 3px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .viewers-count {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .viewers-count svg { opacity: 0.6; }
+
+    .stream-body { padding: 16px; }
+    .stream-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .stream-field label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      display: block;
+      margin-bottom: 3px;
+    }
+    .stream-field .value {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .stream-field .value.mono {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+    }
+    .resolution-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .res-box {
+      border: 1.5px solid var(--accent);
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: monospace;
+    }
+    .aspect-label {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .bitrate-bar {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .bitrate-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+
+    .stream-urls {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+    .url-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .url-tag {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 3px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      min-width: 44px;
+      text-align: center;
+    }
+    .tag-srt { background: #4f8ef722; color: var(--accent); border: 1px solid #4f8ef744; }
+    .tag-rtmp { background: #7c4dff22; color: var(--accent2); border: 1px solid #7c4dff44; }
+    .tag-hls { background: #2ecc7122; color: var(--green); border: 1px solid #2ecc7144; }
+    .url-text {
+      font-size: 11px;
+      font-family: monospace;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .url-text:hover { color: var(--text); }
+    .copy-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .copy-btn:hover { background: var(--surface2); color: var(--text); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green)44; }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+    .empty-state h3 { font-size: 18px; margin-bottom: 8px; color: var(--text); opacity: 0.7; }
+    .empty-state p { font-size: 14px; line-height: 1.6; }
+
+    .server-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+    .server-info {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .server-kv { font-size: 12px; }
+    .server-kv span:first-child { color: var(--muted); margin-right: 6px; }
+    .server-kv span:last-child { font-weight: 600; font-family: monospace; }
+
+    .uptime-display {
+      color: var(--green);
+    }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      color: var(--muted);
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="dot"></div>
+    Stream Monitor
+  </div>
+  <div class="header-right">
+    <div class="refresh-indicator">
+      <div class="refresh-spinner" id="spinner"></div>
+      <span id="last-update">—</span>
+    </div>
+    <span>srt.kronnos.dev</span>
+  </div>
+</header>
+
+<main>
+  <div class="stats-bar" id="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">Streams activos</div>
+      <div class="stat-value green" id="stat-streams">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Viewers totales</div>
+      <div class="stat-value accent" id="stat-viewers">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Ancho de banda ↓</div>
+      <div class="stat-value yellow" id="stat-bw-in">—</div>
+      <div class="stat-sub">kbps entrante</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Ancho de banda ↑</div>
+      <div class="stat-value accent" id="stat-bw-out">—</div>
+      <div class="stat-sub">kbps saliente</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Servidor</div>
+      <div class="stat-value green uptime-display" id="stat-uptime">—</div>
+      <div class="stat-sub">SRS v<span id="stat-version">—</span></div>
+    </div>
+  </div>
+
+  <div class="section-title">Streams en vivo</div>
+  <div class="streams-grid" id="streams-grid">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">📡</div>
+      <h3>Ninguna cámara conectada</h3>
+      <p>Conecta una fuente de video para comenzar.<br>Publica vía SRT, RTMP o cualquier protocolo compatible.</p>
+    </div>
+  </div>
+
+  <div class="section-title">Información de conexión</div>
+  <div class="server-panel">
+    <div class="server-info">
+      <div class="server-kv"><span>SRT publish:</span><span>srt://srt.kronnos.dev:10080?streamid=#!::r=live/{nombre},m=publish</span></div>
+      <div class="server-kv"><span>RTMP publish:</span><span>rtmp://srt.kronnos.dev:1935/live/{nombre}</span></div>
+      <div class="server-kv"><span>HLS play:</span><span>https://srt.kronnos.dev/live/{nombre}.m3u8</span></div>
+      <div class="server-kv"><span>RTMP backup:</span><span>rtmp://srt.kronnos.dev:1936/live/{nombre}</span></div>
+      <div class="server-kv"><span>HTTP-FLV:</span><span>https://srt.kronnos.dev/live/{nombre}.flv</span></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Stream Monitor · Actualización automática cada 2s · SRS 5.x
+</footer>
+
+<script>
+  const HOST = window.location.hostname;
+  const API = '/api/srs';
+  let serverVersion = '—';
+
+  function formatBitrate(kbps) {
+    if (kbps >= 1000) return (kbps / 1000).toFixed(1) + ' Mbps';
+    return Math.round(kbps) + ' kbps';
+  }
+
+  function formatDuration(ms) {
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return s + 's';
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ' + (s % 60) + 's';
+    const h = Math.floor(m / 60);
+    return h + 'h ' + (m % 60) + 'm';
+  }
+
+  function getAspectRatio(w, h) {
+    if (!w || !h) return '—';
+    const gcd = (a, b) => b ? gcd(b, a % b) : a;
+    const g = gcd(w, h);
+    const rw = w / g, rh = h / g;
+    const common = [[16,9],[4,3],[21,9],[1,1],[9,16],[3,4]];
+    for (const [a,b] of common) {
+      if (Math.abs(rw/rh - a/b) < 0.02) return a + ':' + b;
+    }
+    return rw + ':' + rh;
+  }
+
+  function copyUrl(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'Copiado!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copiar'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+
+  function renderStream(stream) {
+    const v = stream.video || {};
+    const a = stream.audio || {};
+    const w = v.width || 0, h = v.height || 0;
+    const aspect = getAspectRatio(w, h);
+    const bwVideo = stream.bw_video || 0;
+    const bwAudio = stream.bw_audio || 0;
+    const totalBw = bwVideo + bwAudio;
+    const bwPercent = Math.min(100, (totalBw / 8000) * 100);
+
+    const streamId = stream.stream || stream.name.split('/').pop() || 'stream';
+    const app = stream.app || 'live';
+    const srtUrl = `srt://srt.kronnos.dev:10080?streamid=#!::r=${app}/${streamId},m=request`;
+    const rtmpUrl = `rtmp://srt.kronnos.dev:1935/${app}/${streamId}`;
+    const hlsUrl = `https://${HOST}/${app}/${streamId}.m3u8`;
+
+    return `
+      <div class="stream-card">
+        <div class="stream-card-header">
+          <div class="stream-name">
+            <span>${stream.name || 'stream'}</span>
+            <span class="badge-live">LIVE</span>
+          </div>
+          <div class="viewers-count">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+            </svg>
+            ${stream.clients || 0} viewers
+          </div>
+        </div>
+        <div class="stream-body">
+          <div class="stream-grid">
+            <div class="stream-field">
+              <label>Resolución</label>
+              ${w && h ? `
+                <div class="resolution-display">
+                  <div class="res-box">${w}×${h}</div>
+                  <span class="aspect-label">${aspect}</span>
+                </div>
+              ` : '<div class="value muted">—</div>'}
+            </div>
+            <div class="stream-field">
+              <label>FPS</label>
+              <div class="value">${v.fps || '—'}</div>
+            </div>
+            <div class="stream-field">
+              <label>Video</label>
+              <div class="value mono">${v.codec || '—'} ${v.profile || ''} ${v.level || ''}</div>
+            </div>
+            <div class="stream-field">
+              <label>Audio</label>
+              <div class="value mono">${a.codec || '—'} ${a.sample_rate ? a.sample_rate/1000+'kHz' : ''} ${a.channel === 2 ? 'Stereo' : a.channel === 1 ? 'Mono' : ''}</div>
+            </div>
+            <div class="stream-field">
+              <label>Bitrate</label>
+              <div class="value">${formatBitrate(totalBw)}</div>
+              <div class="bitrate-bar"><div class="bitrate-fill" style="width:${bwPercent}%"></div></div>
+            </div>
+            <div class="stream-field">
+              <label>Tiempo live</label>
+              <div class="value">${formatDuration(stream.live_ms || 0)}</div>
+            </div>
+          </div>
+          <div class="stream-urls">
+            <div class="url-row">
+              <span class="url-tag tag-srt">SRT</span>
+              <span class="url-text" title="${srtUrl}">${srtUrl}</span>
+              <button class="copy-btn" onclick="copyUrl('${srtUrl}', this)">Copiar</button>
+            </div>
+            <div class="url-row">
+              <span class="url-tag tag-rtmp">RTMP</span>
+              <span class="url-text" title="${rtmpUrl}">${rtmpUrl}</span>
+              <button class="copy-btn" onclick="copyUrl('${rtmpUrl}', this)">Copiar</button>
+            </div>
+            <div class="url-row">
+              <span class="url-tag tag-hls">HLS</span>
+              <span class="url-text" title="${hlsUrl}">${hlsUrl}</span>
+              <button class="copy-btn" onclick="copyUrl('${hlsUrl}', this)">Copiar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function fetchData() {
+    const spinner = document.getElementById('spinner');
+    spinner.classList.add('active');
+    try {
+      const [streamsRes, summaryRes] = await Promise.all([
+        fetch(`${API}/v1/streams/`),
+        fetch(`${API}/v1/summaries/`)
+      ]);
+      const streamsData = await streamsRes.json();
+      const summaryData = await summaryRes.json();
+
+      const streams = streamsData.streams || [];
+      const summary = summaryData.data || {};
+
+      document.getElementById('stat-streams').textContent = streams.length;
+      document.getElementById('stat-viewers').textContent =
+        streams.reduce((acc, s) => acc + (s.clients || 0), 0);
+
+      const totalBwIn = streams.reduce((acc, s) => acc + (s.kbps?.recv_30s || 0), 0);
+      const totalBwOut = streams.reduce((acc, s) => acc + (s.kbps?.send_30s || 0), 0);
+      document.getElementById('stat-bw-in').textContent = formatBitrate(totalBwIn);
+      document.getElementById('stat-bw-out').textContent = formatBitrate(totalBwOut);
+
+      if (summary.self) {
+        const uptimeSec = summary.self.srs_uptime || 0;
+        document.getElementById('stat-uptime').textContent = formatDuration(uptimeSec * 1000);
+        document.getElementById('stat-version').textContent =
+          summary.self.version || '—';
+      }
+
+      const grid = document.getElementById('streams-grid');
+      const empty = document.getElementById('empty-state');
+      if (streams.length === 0) {
+        grid.innerHTML = '';
+        grid.appendChild(empty);
+      } else {
+        grid.innerHTML = streams.map(renderStream).join('');
+      }
+
+      document.getElementById('last-update').textContent =
+        'Actualizado ' + new Date().toLocaleTimeString('es', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    } catch (e) {
+      console.error('Error fetching SRS data:', e);
+      document.getElementById('last-update').textContent = 'Error de conexión';
+    } finally {
+      spinner.classList.remove('active');
+    }
+  }
+
+  fetchData();
+  setInterval(fetchData, 2000);
+</script>
+</body>
+</html>
