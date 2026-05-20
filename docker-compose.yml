@@ -23,9 +23,11 @@ services:
       - dokploy-network
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
       - "traefik.http.routers.stream-monitor.rule=Host(`srt.kronnos.dev`)"
       - "traefik.http.routers.stream-monitor.entrypoints=websecure"
       - "traefik.http.routers.stream-monitor.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.stream-monitor.priority=100"
       - "traefik.http.services.stream-monitor.loadbalancer.server.port=80"
 
 networks:
