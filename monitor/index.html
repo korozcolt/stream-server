@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stream Monitor · srt.kronnos.dev</title>
+  <title>Stream Monitor · srt.aldemaralfaro.com</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     :root {
@@ -330,7 +330,7 @@
       <div class="refresh-spinner" id="spinner"></div>
       <span id="last-update">—</span>
     </div>
-    <span>srt.kronnos.dev</span>
+    <span>srt.aldemaralfaro.com</span>
   </div>
 </header>
 
@@ -386,7 +386,7 @@
       </div>
       <div class="server-info" style="gap:20px;align-items:flex-start;">
         <div>
-          <div class="server-kv" style="margin-bottom:6px;"><span>URL / Servidor:</span><span>srt://srt.kronnos.dev:10080</span></div>
+          <div class="server-kv" style="margin-bottom:6px;"><span>URL / Servidor:</span><span>srt://srt.aldemaralfaro.com:10080</span></div>
           <div class="server-kv" style="margin-bottom:6px;"><span style="color:var(--accent);">campo streamid:</span><span style="color:var(--yellow);font-weight:700;font-family:monospace;">#!::r=live/cam1,m=publish</span></div>
           <div style="font-size:10px;color:var(--muted);margin-bottom:10px;margin-left:4px;">↑ copiar del QR o del botón "Streamid" — va en el campo streamid, NO en la URL</div>
           <div class="server-kv" style="margin-bottom:6px;"><span>Mode:</span><span>Caller</span></div>
@@ -400,9 +400,9 @@
         RTMP (alternativa) / Ver streams
       </div>
       <div class="server-info">
-        <div class="server-kv"><span>RTMP:</span><span>rtmp://srt.kronnos.dev:1935/live · key: cam1</span></div>
-        <div class="server-kv"><span>VLC:</span><span>rtmp://srt.kronnos.dev:1935/live/cam1</span></div>
-        <div class="server-kv"><span>HLS:</span><span>https://srt.kronnos.dev/live/cam1.m3u8</span></div>
+        <div class="server-kv"><span>RTMP:</span><span>rtmp://srt.aldemaralfaro.com:1935/live · key: cam1</span></div>
+        <div class="server-kv"><span>VLC:</span><span>rtmp://srt.aldemaralfaro.com:1935/live/cam1</span></div>
+        <div class="server-kv"><span>HLS:</span><span>https://srt.aldemaralfaro.com/live/cam1.m3u8</span></div>
       </div>
     </div>
   </div>
@@ -468,10 +468,10 @@
     const streamId = stream.stream || stream.name.split('/').pop() || 'stream';
     const app = stream.app || 'live';
     // SRT simplified format: just the stream name, no special characters
-    const srtServer = `srt://srt.kronnos.dev:10080`;
+    const srtServer = `srt://srt.aldemaralfaro.com:10080`;
     const srtKey = streamId;
-    const srtUrl = `srt://srt.kronnos.dev:10080?streamid=${streamId}`;
-    const rtmpUrl = `rtmp://srt.kronnos.dev:1935/${app}/${streamId}`;
+    const srtUrl = `srt://srt.aldemaralfaro.com:10080?streamid=${streamId}`;
+    const rtmpUrl = `rtmp://srt.aldemaralfaro.com:1935/${app}/${streamId}`;
     const hlsUrl = `https://${HOST}/${app}/${streamId}.m3u8`;
 
     return `
@@ -600,8 +600,8 @@
     CAMERAS.forEach(name => {
       // Full publish streamid — QR codes support any character, no keyboard restriction
       const publishStreamid = `#!::r=live/${name},m=publish`;
-      const srtPublishUrl = `srt://srt.kronnos.dev:10080?streamid=${publishStreamid}`;
-      const srtPlayUrl = `srt://srt.kronnos.dev:10080?streamid=${name}`;
+      const srtPublishUrl = `srt://srt.aldemaralfaro.com:10080?streamid=${publishStreamid}`;
+      const srtPlayUrl = `srt://srt.aldemaralfaro.com:10080?streamid=${name}`;
       const div = document.createElement('div');
       div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;min-width:180px;';
       div.innerHTML = `
