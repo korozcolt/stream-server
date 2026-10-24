@@ -84,6 +84,10 @@ Al iniciar, `entrypoint.sh` resuelve la IP del contenedor `srs` por DNS interno 
 
 El dashboard hace peticiones a `/api/srs/*` que nginx proxea a `http://srs:1985/api/*`.
 
+### `srtla` — receptor de bonding (Belabox)
+
+`srtla_rec` de BELABOX (commit fijado en `srtla/Dockerfile`). Recibe SRTLA en UDP 5000 y reenvía SRT normal a `srs:10080`; el streamid del equipo pasa intacto (`#!::r=live/cam1,m=publish`). SRS ve como publicador la IP del contenedor `srtla`, no la del Belabox. Probado de extremo a extremo en local (ffmpeg → `srtla_send` → `srtla_rec` → SRS). Requiere el puerto UDP 5000 abierto en el firewall del proveedor. Sin SRTLA, el Belabox también puede enviar SRT simple al 10080.
+
 ### `nginx-rtmp` — RTMP de backup
 
 Imagen propia con nginx-rtmp. Corre en paralelo en el puerto 1936 (host). Útil como fallback si SRS tiene problemas, o para reproducción RTMP desde players que no soportan SRS.
@@ -98,6 +102,7 @@ Imagen propia con nginx-rtmp. Corre en paralelo en el puerto 1936 (host). Útil 
 | 1935 (TCP) | RTMP | SRS | Publish + play |
 | 1936 (TCP) | RTMP | nginx-rtmp | RTMP backup |
 | 10080 (UDP) | SRT | SRS | Publish + play |
+| 5000 (UDP) | SRTLA | srtla | Ingesta con bonding (Belabox); reenvía SRT a SRS:10080 |
 | 8080 (TCP) | HTTP | SRS | HLS, HTTP-FLV, stats |
 | 8081 (TCP, solo 127.0.0.1) | HTTP | nginx-rtmp | Stats nginx-rtmp |
 | 1985 (TCP) | HTTP | SRS API | REST API; el monitor la usa por la red Docker (expuesta también en el host) |
@@ -292,6 +297,9 @@ stream-server/
 ├── nginx-rtmp/
 │   ├── Dockerfile               # nginx con módulo RTMP
 │   └── nginx.conf               # Application live, stats
+│
+├── srtla/
+│   └── Dockerfile               # Compila srtla_rec (BELABOX) y reenvía a SRS
 │
 ├── probe/
 │   ├── Dockerfile               # alpine + ffmpeg + python3
