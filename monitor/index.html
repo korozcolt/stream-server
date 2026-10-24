@@ -309,6 +309,44 @@
       color: var(--green);
     }
 
+
+    .stream-card.idle { opacity: 0.55; }
+    .preview {
+      position: relative;
+      background: #000;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .preview img { max-width: 100%; max-height: 100%; display: block; }
+    .preview [hidden] { display: none; }
+    .preview-msg { font-size: 12px; color: var(--muted); }
+    .preview-age {
+      position: absolute; right: 6px; bottom: 4px;
+      font-size: 10px; color: #fff; background: #000a;
+      padding: 1px 6px; border-radius: 3px;
+    }
+    .ori { font-size: 11px; font-weight: 700; letter-spacing: .4px; }
+    .ori-v { color: var(--yellow); }
+    .ori-h { color: var(--green); }
+    .ori-sq { color: var(--muted); }
+    .chip {
+      display: inline-block; margin-top: 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: .4px;
+      padding: 2px 6px; border-radius: 3px;
+    }
+    .chip:empty { display: none; }
+    .chip-ok   { background: #2ecc7122; color: var(--green);  border: 1px solid #2ecc7144; }
+    .chip-warn { background: #f39c1222; color: var(--yellow); border: 1px solid #f39c1244; }
+    .chip-bad  { background: #e74c3c22; color: var(--red);    border: 1px solid #e74c3c44; }
+    .chip-wait { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+    details.server-panel > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
+    details.server-panel[open] > summary { margin-bottom: 14px; }
+
     footer {
       text-align: center;
       padding: 24px;
@@ -370,13 +408,14 @@
     </div>
   </div>
 
-  <div class="section-title">Conexión rápida — escanea el QR desde la app</div>
-  <div class="server-panel" id="qr-panel">
+  <div class="section-title">Conexión rápida (QR para la app Android)</div>
+  <details class="server-panel" id="qr-details">
+    <summary>Mostrar códigos QR</summary>
     <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">
-      Escanea el QR desde CameraFi / OBS / cualquier app SRT. Cada cámara tiene su propia URL.
+      Escanea el QR desde stream-app (Android) / CameraFi. En iPhone no aplica: usa los datos de conexión manual.
     </div>
     <div id="qr-cards" style="display:flex;gap:20px;flex-wrap:wrap;"></div>
-  </div>
+  </details>
 
   <div class="section-title">Información de conexión manual</div>
   <div class="server-panel">
@@ -409,13 +448,16 @@
 </main>
 
 <footer>
-  Stream Monitor · Actualización automática cada 2s · SRS 5.x
+  Stream Monitor · Actualización automática cada 2s · medición FPS/audio cada 15s · SRS 5.x
 </footer>
 
 <script>
   const HOST = window.location.hostname;
   const API = '/api/srs';
-  let serverVersion = '—';
+  const POLL_MS = 2000;
+  const PROBE_STALE_MS = 60000;
+  const SAFE_NAME = /^[A-Za-z0-9_-]{1,64}$/;
+  const cards = new Map(); // stream name -> { el, f: {campo: elemento}, thumbTs }
 
   function formatBitrate(kbps) {
     if (kbps >= 1000) return (kbps / 1000).toFixed(1) + ' Mbps';
@@ -423,7 +465,7 @@
   }
 
   function formatDuration(ms) {
-    const s = Math.floor(ms / 1000);
+    const s = Math.max(0, Math.floor(ms / 1000));
     if (s < 60) return s + 's';
     const m = Math.floor(s / 60);
     if (m < 60) return m + 'm ' + (s % 60) + 's';
@@ -432,15 +474,23 @@
   }
 
   function getAspectRatio(w, h) {
-    if (!w || !h) return '—';
     const gcd = (a, b) => b ? gcd(b, a % b) : a;
     const g = gcd(w, h);
     const rw = w / g, rh = h / g;
-    const common = [[16,9],[4,3],[21,9],[1,1],[9,16],[3,4]];
-    for (const [a,b] of common) {
-      if (Math.abs(rw/rh - a/b) < 0.02) return a + ':' + b;
+    const common = [[16,9],[9,16],[4,3],[3,4],[21,9],[1,1]];
+    for (const [a, b] of common) {
+      if (Math.abs(rw / rh - a / b) < 0.02) return a + ':' + b;
     }
     return rw + ':' + rh;
+  }
+
+  function orientation(w, h) {
+    if (!w || !h) return null;
+    const label = getAspectRatio(w, h);
+    if (Math.abs(w - h) / Math.max(w, h) < 0.02) return { text: 'CUADRADO', cls: 'ori-sq', ratio: label };
+    return h > w
+      ? { text: 'VERTICAL', cls: 'ori-v', ratio: label }
+      : { text: 'HORIZONTAL', cls: 'ori-h', ratio: label };
   }
 
   function copyUrl(text, btn) {
@@ -451,139 +501,214 @@
     });
   }
 
-  function renderStream(stream) {
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function field(label, f, key, cls) {
+    const wrap = el('div', 'stream-field');
+    wrap.appendChild(el('label', null, label));
+    const v = el('div', 'value' + (cls ? ' ' + cls : ''), '—');
+    f[key] = v;
+    wrap.appendChild(v);
+    return wrap;
+  }
+
+  function urlRow(tagCls, tag, url) {
+    const row = el('div', 'url-row');
+    row.appendChild(el('span', 'url-tag ' + tagCls, tag));
+    const t = el('span', 'url-text', url);
+    t.title = url;
+    row.appendChild(t);
+    const b = el('button', 'copy-btn', 'Copiar');
+    b.addEventListener('click', () => copyUrl(url, b));
+    row.appendChild(b);
+    return row;
+  }
+
+  // Estructura estática de la tarjeta: se crea una vez y luego solo se actualizan los textos.
+  function createCard(name) {
+    const f = {};
+    const card = el('div', 'stream-card');
+
+    const head = el('div', 'stream-card-header');
+    const nm = el('div', 'stream-name');
+    nm.appendChild(el('span', null, name));
+    f.badge = el('span', 'badge-live', 'LIVE');
+    nm.appendChild(f.badge);
+    head.appendChild(nm);
+    f.viewers = el('div', 'viewers-count', '0 viewers');
+    head.appendChild(f.viewers);
+    card.appendChild(head);
+
+    const body = el('div', 'stream-body');
+
+    const prev = el('div', 'preview');
+    f.thumb = document.createElement('img');
+    f.thumb.alt = 'Vista previa de ' + name;
+    f.thumb.hidden = true;
+    f.thumb.addEventListener('load', () => { f.thumb.hidden = false; f.thumbMsg.hidden = true; });
+    f.thumb.addEventListener('error', () => { f.thumb.hidden = true; f.thumbMsg.hidden = false; });
+    f.thumbMsg = el('div', 'preview-msg', 'Generando vista previa…');
+    f.thumbAge = el('div', 'preview-age', '');
+    prev.append(f.thumb, f.thumbMsg, f.thumbAge);
+    body.appendChild(prev);
+
+    const grid = el('div', 'stream-grid');
+    const resWrap = el('div', 'stream-field');
+    resWrap.appendChild(el('label', null, 'Resolución'));
+    const resRow = el('div', 'resolution-display');
+    f.res = el('div', 'res-box', '—');
+    f.ori = el('span', 'ori', '');
+    resRow.append(f.res, f.ori);
+    resWrap.appendChild(resRow);
+    grid.appendChild(resWrap);
+    grid.appendChild(field('FPS reales', f, 'fps'));
+    grid.appendChild(field('Video', f, 'video', 'mono'));
+
+    const audWrap = el('div', 'stream-field');
+    audWrap.appendChild(el('label', null, 'Audio'));
+    f.audio = el('div', 'value mono', '—');
+    f.audioChip = el('span', 'chip', '');
+    audWrap.append(f.audio, f.audioChip);
+    grid.appendChild(audWrap);
+
+    const bwWrap = el('div', 'stream-field');
+    bwWrap.appendChild(el('label', null, 'Bitrate'));
+    f.bw = el('div', 'value', '—');
+    const bar = el('div', 'bitrate-bar');
+    f.bwFill = el('div', 'bitrate-fill');
+    bar.appendChild(f.bwFill);
+    bwWrap.append(f.bw, bar);
+    grid.appendChild(bwWrap);
+    grid.appendChild(field('Tiempo live', f, 'live'));
+    body.appendChild(grid);
+
+    const urls = el('div', 'stream-urls');
+    const safe = encodeURIComponent(name);
+    urls.appendChild(urlRow('tag-srt', 'SRT', `srt://srt.kronnos.dev:10080?streamid=${safe}`));
+    urls.appendChild(urlRow('tag-rtmp', 'RTMP', `rtmp://srt.kronnos.dev:1935/live/${safe}`));
+    urls.appendChild(urlRow('tag-hls', 'HLS', `https://${HOST}/live/${safe}.m3u8`));
+    body.appendChild(urls);
+
+    card.appendChild(body);
+    return { el: card, f, thumbTs: 0 };
+  }
+
+  function audioView(stream, probe) {
+    const a = stream.audio;
+    if (!a) return { text: '—', chip: 'SIN AUDIO', cls: 'chip-bad' };
+    const text = `${a.codec || '?'} ${a.sample_rate ? a.sample_rate / 1000 + 'kHz' : ''} ${a.channel === 2 ? 'Stereo' : a.channel === 1 ? 'Mono' : ''}`.trim();
+    const pa = probe && probe.audio;
+    const peak = pa && typeof pa.peak_db === 'number' ? ` · pico ${pa.peak_db.toFixed(0)} dB` : '';
+    switch (pa && pa.status) {
+      case 'ok':      return { text, chip: 'CON AUDIO' + peak, cls: 'chip-ok' };
+      case 'low':     return { text, chip: 'SEÑAL BAJA' + peak, cls: 'chip-warn' };
+      case 'silent':  return { text, chip: 'SILENCIO' + peak, cls: 'chip-bad' };
+      default:        return { text, chip: 'midiendo…', cls: 'chip-wait' };
+    }
+  }
+
+  function updateCard(c, stream, publisher, viewers, probe) {
+    const f = c.f;
+    const live = !!(stream.publish && stream.publish.active);
+    f.badge.className = live ? 'badge-live' : 'badge-idle';
+    f.badge.textContent = live ? 'LIVE' : 'SIN SEÑAL';
+    c.el.classList.toggle('idle', !live);
+    f.viewers.textContent = `${viewers} viewers`;
+
     const v = stream.video || {};
-    const a = stream.audio || {};
     const w = v.width || 0, h = v.height || 0;
-    const aspect = getAspectRatio(w, h);
-    const bwVideo = stream.kbps?.recv_30s || stream.bw_video || 0;
-    const bwAudio = 0;
-    const totalBw = bwVideo + bwAudio;
-    const bwPercent = Math.min(100, (totalBw / 8000) * 100);
-    // live_ms is a Unix timestamp in ms — compute elapsed duration
-    const liveDurationMs = stream.live_ms ? (Date.now() - stream.live_ms) : 0;
-    // FPS from video field or estimate from frames/duration
-    const fps = v.fps || (stream.frames && liveDurationMs > 0 ? Math.round(stream.frames / (liveDurationMs / 1000)) : null);
+    f.res.textContent = w && h ? `${w}×${h}` : '—';
+    const ori = orientation(w, h);
+    f.ori.textContent = ori ? `${ori.text} · ${ori.ratio}` : '';
+    f.ori.className = 'ori ' + (ori ? ori.cls : '');
 
-    const streamId = stream.stream || stream.name.split('/').pop() || 'stream';
-    const app = stream.app || 'live';
-    // SRT simplified format: just the stream name, no special characters
-    const srtServer = `srt://srt.kronnos.dev:10080`;
-    const srtKey = streamId;
-    const srtUrl = `srt://srt.kronnos.dev:10080?streamid=${streamId}`;
-    const rtmpUrl = `rtmp://srt.kronnos.dev:1935/${app}/${streamId}`;
-    const hlsUrl = `https://${HOST}/${app}/${streamId}.m3u8`;
+    const fresh = probe && Date.now() - probe.ts < PROBE_STALE_MS;
+    f.fps.textContent = live && fresh && probe.fps ? `${probe.fps} fps` : '—';
+    f.video.textContent = v.codec ? `${v.codec} ${v.profile || ''}`.trim() : '—';
 
-    return `
-      <div class="stream-card">
-        <div class="stream-card-header">
-          <div class="stream-name">
-            <span>${stream.name || 'stream'}</span>
-            <span class="badge-live">LIVE</span>
-          </div>
-          <div class="viewers-count">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-            </svg>
-            ${stream.clients || 0} viewers
-          </div>
-        </div>
-        <div class="stream-body">
-          <div class="stream-grid">
-            <div class="stream-field">
-              <label>Resolución</label>
-              ${w && h ? `
-                <div class="resolution-display">
-                  <div class="res-box">${w}×${h}</div>
-                  <span class="aspect-label">${aspect}</span>
-                </div>
-              ` : '<div class="value muted">—</div>'}
-            </div>
-            <div class="stream-field">
-              <label>FPS</label>
-              <div class="value">${fps || '—'}</div>
-            </div>
-            <div class="stream-field">
-              <label>Video</label>
-              <div class="value mono">${v.codec || '—'} ${v.profile || ''} ${v.level || ''}</div>
-            </div>
-            <div class="stream-field">
-              <label>Audio</label>
-              <div class="value mono">${a.codec || '—'} ${a.sample_rate ? a.sample_rate/1000+'kHz' : ''} ${a.channel === 2 ? 'Stereo' : a.channel === 1 ? 'Mono' : ''}</div>
-            </div>
-            <div class="stream-field">
-              <label>Bitrate</label>
-              <div class="value">${totalBw > 0 ? formatBitrate(totalBw) : '—'}</div>
-              <div class="bitrate-bar"><div class="bitrate-fill" style="width:${bwPercent}%"></div></div>
-            </div>
-            <div class="stream-field">
-              <label>Tiempo live</label>
-              <div class="value">${formatDuration(liveDurationMs)}</div>
-            </div>
-          </div>
-          <div class="stream-urls">
-            <div class="url-row">
-              <span class="url-tag tag-srt">SRT</span>
-              <span class="url-text" title="${srtUrl}">${srtUrl}</span>
-              <button class="copy-btn" onclick="copyUrl('${srtUrl}', this)">Copiar</button>
-            </div>
-            <div class="url-row">
-              <span class="url-tag tag-rtmp">RTMP</span>
-              <span class="url-text" title="${rtmpUrl}">${rtmpUrl}</span>
-              <button class="copy-btn" onclick="copyUrl('${rtmpUrl}', this)">Copiar</button>
-            </div>
-            <div class="url-row">
-              <span class="url-tag tag-hls">HLS</span>
-              <span class="url-text" title="${hlsUrl}">${hlsUrl}</span>
-              <button class="copy-btn" onclick="copyUrl('${hlsUrl}', this)">Copiar</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
+    const av = audioView(stream, fresh ? probe : null);
+    f.audio.textContent = av.text;
+    f.audioChip.textContent = live ? av.chip : '';
+    f.audioChip.className = 'chip ' + av.cls;
+
+    const kbps = (stream.kbps && stream.kbps.recv_30s) || 0;
+    f.bw.textContent = kbps > 0 ? formatBitrate(kbps) : '—';
+    f.bwFill.style.width = Math.min(100, kbps / 8000 * 100) + '%';
+
+    // SRS no entrega el inicio del stream (live_ms = hora actual); el tiempo real es el `alive` del publicador.
+    f.live.textContent = live && publisher ? formatDuration(publisher.alive * 1000) : '—';
+
+    if (live && fresh && probe.ts !== c.thumbTs) {
+      c.thumbTs = probe.ts;
+      f.thumb.src = `/probe/${encodeURIComponent(stream.name)}.jpg?t=${probe.ts}`;
+    }
+    f.thumbAge.textContent = live && fresh ? `vista previa · hace ${Math.max(0, Math.round((Date.now() - probe.ts) / 1000))}s` : '';
+  }
+
+  async function fetchProbe(name) {
+    if (!SAFE_NAME.test(name)) return null;
+    try {
+      const r = await fetch(`/probe/${encodeURIComponent(name)}.json`, { cache: 'no-store' });
+      return r.ok ? await r.json() : null;
+    } catch (e) { return null; }
   }
 
   async function fetchData() {
     const spinner = document.getElementById('spinner');
     spinner.classList.add('active');
     try {
-      const [streamsRes, summaryRes] = await Promise.all([
+      const [streamsRes, summaryRes, clientsRes] = await Promise.all([
         fetch(`${API}/v1/streams/`),
-        fetch(`${API}/v1/summaries/`)
+        fetch(`${API}/v1/summaries`),   // sin "/" final: con ella SRS devuelve el índice de la API
+        fetch(`${API}/v1/clients/?count=200`)
       ]);
-      const streamsData = await streamsRes.json();
-      const summaryData = await summaryRes.json();
+      const streams = ((await streamsRes.json()).streams || []).filter(s => s.app === 'live');
+      const summary = (await summaryRes.json()).data || {};
+      const clients = (await clientsRes.json()).clients || [];
 
-      const streams = streamsData.streams || [];
-      const summary = summaryData.data || {};
+      const publishers = new Map();
+      const viewerCount = new Map();
+      for (const cl of clients) {
+        if (cl.publish) publishers.set(cl.url, cl);
+        else viewerCount.set(cl.url, (viewerCount.get(cl.url) || 0) + 1);
+      }
 
-      document.getElementById('stat-streams').textContent = streams.length;
+      const liveStreams = streams.filter(s => s.publish && s.publish.active);
+      const probes = new Map(await Promise.all(liveStreams.map(async s => [s.name, await fetchProbe(s.name)])));
+
+      document.getElementById('stat-streams').textContent = liveStreams.length;
       document.getElementById('stat-viewers').textContent =
-        streams.reduce((acc, s) => acc + (s.clients || 0), 0);
-
-      const totalBwIn = streams.reduce((acc, s) => acc + (s.kbps?.recv_30s || s.bw_video || 0), 0);
-      const totalBwOut = streams.reduce((acc, s) => acc + (s.kbps?.send_30s || 0), 0);
-      document.getElementById('stat-bw-in').textContent = formatBitrate(totalBwIn);
-      document.getElementById('stat-bw-out').textContent = formatBitrate(totalBwOut);
+        streams.reduce((acc, s) => acc + (viewerCount.get(s.url) || 0), 0);
+      document.getElementById('stat-bw-in').textContent =
+        formatBitrate(liveStreams.reduce((acc, s) => acc + ((s.kbps && s.kbps.recv_30s) || 0), 0));
+      document.getElementById('stat-bw-out').textContent =
+        formatBitrate(streams.reduce((acc, s) => acc + ((s.kbps && s.kbps.send_30s) || 0), 0));
 
       if (summary.self) {
-        const uptimeSec = summary.self.srs_uptime || 0;
-        document.getElementById('stat-uptime').textContent = formatDuration(uptimeSec * 1000);
-        document.getElementById('stat-version').textContent =
-          summary.self.version || '—';
+        document.getElementById('stat-uptime').textContent = formatDuration((summary.self.srs_uptime || 0) * 1000);
+        document.getElementById('stat-version').textContent = summary.self.version || '—';
       }
 
       const grid = document.getElementById('streams-grid');
       const empty = document.getElementById('empty-state');
-      if (streams.length === 0) {
-        grid.innerHTML = '';
-        grid.appendChild(empty);
-      } else {
-        grid.innerHTML = streams.map(renderStream).join('');
+      const names = new Set(streams.map(s => s.name));
+      for (const [name, c] of cards) {
+        if (!names.has(name)) { c.el.remove(); cards.delete(name); }
       }
+      for (const s of streams) {
+        let c = cards.get(s.name);
+        if (!c) { c = createCard(s.name); cards.set(s.name, c); grid.appendChild(c.el); }
+        updateCard(c, s, publishers.get(s.url), viewerCount.get(s.url) || 0, probes.get(s.name));
+      }
+      empty.hidden = streams.length > 0;
 
       document.getElementById('last-update').textContent =
-        'Actualizado ' + new Date().toLocaleTimeString('es', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+        'Actualizado ' + new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     } catch (e) {
       console.error('Error fetching SRS data:', e);
       document.getElementById('last-update').textContent = 'Error de conexión';
@@ -625,9 +750,14 @@
     });
   }
 
-  buildQrCards();
+  // Los QR solo se dibujan al abrir el panel (lo usa la app Android; en iPhone no sirven).
+  document.getElementById('qr-details').addEventListener('toggle', function once(ev) {
+    if (!ev.target.open) return;
+    ev.target.removeEventListener('toggle', once);
+    buildQrCards();
+  });
   fetchData();
-  setInterval(fetchData, 2000);
+  setInterval(fetchData, POLL_MS);
 </script>
 </body>
 </html>

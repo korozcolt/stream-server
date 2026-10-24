@@ -12,12 +12,24 @@ services:
     build: ./nginx-rtmp
     ports:
       - "1936:1935"         # RTMP backup (port 1936 on host)
-      - "8081:80"           # nginx-rtmp stats
+      - "127.0.0.1:8081:80"     # nginx-rtmp stats: solo local
+    restart: always
+
+  probe:
+    build: ./probe
+    depends_on:
+      - srs
+    volumes:
+      - probe-data:/srv/probe
     restart: always
 
   monitor:
     build: ./monitor
     restart: always
+    depends_on:
+      - probe
+    volumes:
+      - probe-data:/srv/probe:ro
     networks:
       - default
       - dokploy-network
@@ -29,6 +41,9 @@ services:
       - "traefik.http.routers.stream-monitor.tls.certresolver=letsencrypt"
       - "traefik.http.routers.stream-monitor.priority=100"
       - "traefik.http.services.stream-monitor.loadbalancer.server.port=80"
+
+volumes:
+  probe-data:
 
 networks:
   dokploy-network:
