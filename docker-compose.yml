@@ -15,6 +15,14 @@ services:
       - "127.0.0.1:8081:80"     # nginx-rtmp stats: solo local
     restart: always
 
+  srtla:
+    build: ./srtla
+    ports:
+      - "5000:5000/udp"     # SRTLA (Belabox, bonding de varios enlaces) -> reenvia a SRS por SRT
+    depends_on:
+      - srs
+    restart: always
+
   probe:
     build: ./probe
     depends_on:
