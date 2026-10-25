@@ -4,6 +4,8 @@ Servidor Docker para recibir y distribuir streams de video en vivo via SRT y RTM
 
 ---
 
+> Auditoría, cambios y pendientes de la sesión del 24 oct 2026: [`docs/AUDITORIA-2026-10-24.md`](docs/AUDITORIA-2026-10-24.md). Notas del evento Sucre U17: [`docs/EVENTO-SUCRE-U17.md`](docs/EVENTO-SUCRE-U17.md).
+
 ## Tabla de contenidos
 
 1. [Para qué sirve](#para-qué-sirve)
@@ -304,6 +306,8 @@ stream-server/
 ├── probe/
 │   ├── Dockerfile               # alpine + ffmpeg + python3
 │   └── probe.py                 # Mide fps/audio y genera miniaturas de streams activos
+│
+├── docs/                        # Auditoría 2026-10-24 y notas del evento
 │
 └── monitor/
     ├── Dockerfile               # nginx:alpine + bind-tools

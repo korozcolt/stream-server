@@ -43,3 +43,4 @@ OBS lee la señal por `rtmp://srs:1935/live/cam2` dentro de la red Docker.
 - Pendientes: autenticación de publish (hoy cualquiera puede publicar en `live/<nombre>`; requiere que cámaras/OBS envíen un secreto), OBS `feed_cam1` sigue leyendo `live/facebook` (el relay de Facebook ya está apagado).
 - Belabox: nuevo servicio `srtla` (UDP 5000 → `srs:10080`) para bonding de varios enlaces. Streamid igual que SRT (`#!::r=live/cam1,m=publish`); latency 1500–2000 ms en celular. Verificado solo en local; falta probar con un Belabox real y confirmar UDP 5000 abierto en el firewall del proveedor.
 - Corrección: `live/facebook` ya no lo lee nadie (OBS `feed_cam1` actualizado por el usuario); queda obsoleta la nota anterior sobre ese pendiente.
+- Detalle completo en `docs/AUDITORIA-2026-10-24.md`.
